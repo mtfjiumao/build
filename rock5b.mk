@@ -13,12 +13,14 @@ DEBUG ?= 1
 ################################################################################
 # Paths to git projects and various binaries
 ################################################################################
-TF_A_PATH		?= $(ROOT)/trusted-firmware-a
+TF_A_PATH		?= $(ROOT)/atf
+OPTEE_OS_PATH ?= $(ROOT)/optee_os
 BINARIES_PATH		?= $(ROOT)/out
 UBOOT_PATH		?= $(ROOT)/u-boot
 UBOOT_BIN		?= $(UBOOT_PATH)/u-boot.bin
 ROOT_IMG 		?= $(ROOT)/out-br/images/rootfs.ext2
 BOOT_IMG		?= $(ROOT)/out/rock5b.img
+RKBIN_PATH ?= $(ROOT)/rkbin
 RKDEVELOPTOOL_PATH	?= $(ROOT)/rkdeveloptool
 RKDEVELOPTOOL_BIN	?= $(RKDEVELOPTOOL_PATH)/rkdeveloptool
 LOADER_BIN		?= $(BINARIES_PATH)/rk3588_spl_loader_v1.15.113.bin
