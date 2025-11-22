@@ -22,7 +22,7 @@ BOOT_IMG		?= $(ROOT)/out/rock5b.img
 RKDEVELOPTOOL_PATH	?= $(ROOT)/rkdeveloptool
 RKDEVELOPTOOL_BIN	?= $(RKDEVELOPTOOL_PATH)/rkdeveloptool
 LOADER_BIN		?= $(BINARIES_PATH)/rk3588_spl_loader_v1.15.113.bin
-TPL_BIN		        ?= $(BINARIES_PATH)/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.16.bin
+TPL_BIN		        ?= $(BINARIES_PATH)/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.19.bin
 
 # OP-TEE / RK3588 specific vars (can be overridden on make command line)
 OPTEE_PATH ?= $(ROOT)/optee_os
