@@ -14,6 +14,7 @@ DEBUG ?= 1
 # Paths to git projects and various binaries
 ################################################################################
 TF_A_PATH		?= $(ROOT)/trusted-firmware-a
+BL31_PATH        := $(TF_A_PATH)/build/rk3588/debug/bl31
 TOP_DIR          := $(shell pwd)
 OUTPUT_DIR       := $(TOP_DIR)/build
 BINARIES_PATH		?= $(ROOT)/out
@@ -28,6 +29,8 @@ RKDEVELOPTOOL_BIN	?= $(RKDEVELOPTOOL_PATH)/rkdeveloptool
 SPL_BIN          := $(UBOOT_PATH)/spl/u-boot-spl.bin
 TPL_BIN          := $(RKBIN_BIN)/bin/rk35/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.19.bin
 
+CROSS_COMPILE    ?= aarch64-linux-gnu-
+ARCH             ?= arm
 # 输出文件
 BL31_ELF         := $(OUTPUT_DIR)/bl31.elf
 TEE_BIN_OUT      := $(OUTPUT_DIR)/tee.bin
@@ -89,14 +92,15 @@ TF_A_FLAGS ?= ARCH=aarch64 PLAT=rk3588 SPD=opteed DEBUG=$(TF_A_DEBUG) \
 	      BL32_EXTRA2=$(OPTEE_OS_PAGEABLE_V2_BIN)
 
 .PHONY: tfa
-tfa:
-	$(TF_A_EXPORTS) $(MAKE) -C $(TF_A_PATH) $(TF_A_FLAGS) bl31
+tfa$(BL31_ELF)
 
-.PHONY: tfa-clean
-tfa-clean:
-	$(TF_A_EXPORTS) $(MAKE) -C $(TF_A_PATH) $(TF_A_FLAGS) clean
-
-clean: tfa-clean
+$(BL31_ELF):
+	@echo "=== 构建 TF-A ==="
+	cd $(TF_A_PATH) && \
+	make CROSS_COMPILE=$(CROSS_COMPILE) PLAT=rk3588 DEBUG=1 SPD=opteed clean && \
+	make CROSS_COMPILE=$(CROSS_COMPILE) PLAT=rk3588 DEBUG=1 SPD=opteed
+	cp $(BL31_PATH)/bl31.elf $(OUTPUT_DIR)
+	@echo "TF-A 构建完成: $(BL31_ELF)"
 
 ################################################################################
 # U-Boot
