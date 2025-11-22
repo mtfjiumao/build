@@ -3,308 +3,6 @@ override COMPILE_NS_KERNEL := 64
 COMPILE_S_USER ?= 64
 COMPILE_S_KERNEL ?= 64
 
-# 项目配置
-TOP_DIR          := $(shell pwd)
-OUTPUT_DIR       := $(TOP_DIR)/build
-TF_A_PATH        := $(TOP_DIR)/atf
-BL31_PATH        := $(TF_A_PATH)/build/rk3588/debug/bl31
-UBOOT_PATH       := $(TOP_DIR)/u-boot
-OPTEE_OS_PATH    := $(TOP_DIR)/optee_os
-TEE_BIN          := $(OPTEE_OS_PATH)/out/arm-plat-rockchip/core
-RKBIN_BIN        := $(TOP_DIR)/rkbin
-SPL_BIN          := $(UBOOT_PATH)/spl/u-boot-spl.bin
-TPL_BIN          := $(RKBIN_BIN)/bin/rk35/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.19.bin
-UBUNTU_IMG_XZ    := $(TOP_DIR)/ubuntu-22.04-preinstalled-server-arm64-rock-5b.img.xz
-UBUNTU_IMG       := $(TOP_DIR)/ubuntu-22.04-preinstalled-server-arm64-rock-5b.img
-MANIFEST_XML     := $(TOP_DIR)/manifest.xml
-TF_A_VERSION      := $(shell xmllint --xpath 'string(//project[@path="trusted-firmware-a"]/@revision)' $(MANIFEST_XML) 2>/dev/null)
-OPTEE_VERSION     := $(shell xmllint --xpath 'string(//project[@path="optee_os"]/@revision)' $(MANIFEST_XML) 2>/dev/null)
-UBOOT_VERSION     := $(shell xmllint --xpath 'string(//project[@path="u-boot"]/@revision)' $(MANIFEST_XML) 2>/dev/null)
-UBUNTU_IMG_VERSION := $(shell xmllint --xpath 'string(//project[@path="ubuntu-image"]/@revision)' $(MANIFEST_XML) 2>/dev/null)
-
-CROSS_COMPILE    ?= aarch64-linux-gnu-
-ARCH             ?= arm
-# 输出文件
-BL31_ELF         := $(OUTPUT_DIR)/bl31.elf
-TEE_BIN_OUT      := $(OUTPUT_DIR)/tee.bin
-IDBLOADER_IMG    := $(OUTPUT_DIR)/idbloader.img
-UBOOT_ITB        := $(OUTPUT_DIR)/u-boot.itb
-
-# 默认目标
-.PHONY: all
-all: check-toolchain download-sources check-env atf optee uboot ubuntu-image
-	@echo "=== 所有组件构建完成 ==="
-	@echo "输出文件在: $(OUTPUT_DIR)"
-	@ls -la $(OUTPUT_DIR)/
-	
-################################################################################
-# 下载源代码
-################################################################################
-.PHONY: download-sources
-download-sources: download-rkbin download-atf download-optee download-uboot download-ubuntu
-
-.PHONY: download-rkbin
-download-rkbin:
-	@echo "=== 下载 rkbin ==="
-	@if [ ! -d "$(RKBIN_BIN)" ]; then \
-		echo "克隆 rkbin..."; \
-		git clone https://github.com/rockchip-linux/rkbin.git $(RKBIN_BIN); \
-		echo "rkbin 下载完成"; \
-	else \
-		echo "rkbin 已存在，跳过下载"; \
-	fi
-
-.PHONY: download-atf
-download-atf:
-	@echo "=== 下载 TF-A (版本: $(TF_A_VERSION)) ==="
-	@if [ -z "$(TF_A_VERSION)" ]; then \
-		echo "错误: 无法从 manifest.xml 获取 TF-A 版本"; \
-		exit 1; \
-	fi
-	@if [ ! -d "$(TF_A_PATH)" ]; then \
-		echo "克隆 TF-A ($(TF_A_VERSION))..."; \
-		git clone -b $(TF_A_VERSION) https://git.trustedfirmware.org/TF-A/trusted-firmware-a.git $(TF_A_PATH); \
-		echo "TF-A 下载完成"; \
-	else \
-		echo "TF-A 已存在，检查版本..."; \
-		cd $(TF_A_PATH) && \
-		current_branch=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); \
-		current_commit=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-		echo "当前分支: $$current_branch, 提交: $$current_commit"; \
-		echo "目标版本: $(TF_A_VERSION)"; \
-	fi
-
-.PHONY: download-optee
-download-optee:
-	@echo "=== 下载 OP-TEE (版本: $(OPTEE_VERSION)) ==="
-	@if [ -z "$(OPTEE_VERSION)" ]; then \
-		echo "错误: 无法从 manifest.xml 获取 OP-TEE 版本"; \
-		exit 1; \
-	fi
-	@if [ ! -d "$(OPTEE_OS_PATH)" ]; then \
-		echo "克隆 OP-TEE ($(OPTEE_VERSION))..."; \
-		git clone -b $(OPTEE_VERSION) https://github.com/OP-TEE/optee_os.git $(OPTEE_OS_PATH); \
-		echo "OP-TEE 下载完成"; \
-	else \
-		echo "OP-TEE 已存在，检查版本..."; \
-		cd $(OPTEE_OS_PATH) && \
-		current_branch=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); \
-		current_commit=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-		echo "当前分支: $$current_branch, 提交: $$current_commit"; \
-		echo "目标版本: $(OPTEE_VERSION)"; \
-	fi
-
-.PHONY: download-uboot
-download-uboot:
-	@echo "=== 下载 U-Boot (版本: $(UBOOT_VERSION)) ==="
-	@if [ -z "$(UBOOT_VERSION)" ]; then \
-		echo "错误: 无法从 manifest.xml 获取 U-Boot 版本"; \
-		exit 1; \
-	fi
-	@if [ ! -d "$(UBOOT_PATH)" ]; then \
-		echo "克隆 U-Boot ($(UBOOT_VERSION))..."; \
-		git clone -b $(UBOOT_VERSION) https://source.denx.de/u-boot/u-boot.git $(UBOOT_PATH); \
-		echo "U-Boot 下载完成"; \
-	else \
-		echo "U-Boot 已存在，检查版本..."; \
-		cd $(UBOOT_PATH) && \
-		current_branch=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); \
-		current_commit=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-		echo "当前分支: $$current_branch, 提交: $$current_commit"; \
-		echo "目标版本: $(UBOOT_VERSION)"; \
-	fi
-
-.PHONY: download-ubuntu
-download-ubuntu:
-	@echo "=== 下载 Ubuntu 镜像 (版本: $(UBUNTU_IMG_VERSION)) ==="
-	@if [ -z "$(UBUNTU_IMG_VERSION)" ]; then \
-		echo "错误: 无法从 manifest.xml 获取 Ubuntu 镜像版本"; \
-		exit 1; \
-	fi
-	@if [ ! -f "$(UBUNTU_IMG_XZ)" ] && [ ! -f "$(UBUNTU_IMG)" ]; then \
-		echo "下载 Ubuntu 22.04 镜像 ($(UBUNTU_IMG_VERSION))..."; \
-		wget -O $(UBUNTU_IMG_XZ) https://github.com/Joshua-Riek/ubuntu-rockchip/releases/download/$(UBUNTU_IMG_VERSION)/ubuntu-22.04-preinstalled-server-arm64-rock-5b.img.xz; \
-		if [ $$? -eq 0 ]; then \
-			echo "Ubuntu 镜像下载完成"; \
-		else \
-			echo "错误: Ubuntu 镜像下载失败"; \
-			exit 1; \
-		fi; \
-	else \
-		echo "Ubuntu 镜像文件已存在"; \
-	fi
-	@if [ -f "$(UBUNTU_IMG_XZ)" ] && [ ! -f "$(UBUNTU_IMG)" ]; then \
-		echo "解压 Ubuntu 镜像..."; \
-		xz -dk $(UBUNTU_IMG_XZ); \
-		if [ $$? -eq 0 ]; then \
-			echo "Ubuntu 镜像解压完成: $(UBUNTU_IMG)"; \
-			echo "镜像大小: $$(du -h $(UBUNTU_IMG) | cut -f1)"; \
-		else \
-			echo "错误: Ubuntu 镜像解压失败"; \
-			exit 1; \
-		fi; \
-	elif [ -f "$(UBUNTU_IMG)" ]; then \
-		echo "Ubuntu 镜像已存在: $(UBUNTU_IMG)"; \
-		echo "镜像大小: $$(du -h $(UBUNTU_IMG) | cut -f1)"; \
-	fi
-
-################################################################################
-# 环境检查
-################################################################################
-.PHONY: check-env
-check-env:
-	@echo "=== 检查构建环境 ==="
-	@mkdir -p $(OUTPUT_DIR)
-	@for comp in atf rkbin optee_os u-boot; do \
-		if [ ! -d "$$comp" ]; then \
-			echo "错误: 缺少 $$comp 目录"; \
-			exit 1; \
-		else \
-			echo "找到 $$comp 目录"; \
-		fi; \
-	done
-	@echo "=== 环境检查完成 ==="
-
-# 安装依赖
-.PHONY: deps
-deps:
-	@echo "=== 安装构建依赖 ==="
-	sudo apt-get update
-	sudo apt-get install -y \
-		git build-essential bc swig python3-dev python3-pip \
-		device-tree-compiler libssl-dev libncurses5-dev \
-		flex bison libfdt-dev libusb-1.0-0-dev \
-		gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-		wget xz-utils parted dosfstools mtools u-boot-tools
-
-################################################################################
-# TF-A
-################################################################################
-.PHONY: atf
-atf: $(BL31_ELF)
-
-$(BL31_ELF):
-	@echo "=== 构建 TF-A ==="
-	cd $(TF_A_PATH) && \
-	make CROSS_COMPILE=$(CROSS_COMPILE) PLAT=rk3588 DEBUG=1 SPD=opteed clean && \
-	make CROSS_COMPILE=$(CROSS_COMPILE) PLAT=rk3588 DEBUG=1 SPD=opteed
-	cp $(BL31_PATH)/bl31.elf $(OUTPUT_DIR)
-	@echo "TF-A 构建完成: $(BL31_ELF)"
-
-################################################################################
-# OP-TEE
-################################################################################
-.PHONY: optee
-optee: $(TEE_BIN_OUT)
-
-$(TEE_BIN_OUT):
-	@echo "=== 构建 OP-TEE ==="
-	cd $(OPTEE_OS_PATH) && \
-	make CFG_ARM64_core=y \
-	     CROSS_COMPILE64=$(CROSS_COMPILE) \
-	     CFG_USER_TA_TARGETS=ta_arm64 \
-	     CFG_DT=y \
-	     CFG_CORE_ARM64_PA_BITS=34 \
-	     PLATFORM=rockchip \
-	     PLATFORM_FLAVOR=rk3588
-	if [ -f "$(TEE_BIN)/tee.bin" ]; then \
-		cp $(TEE_BIN)/tee.bin $(OUTPUT_DIR); \
-		echo "OP-TEE 构建完成: $(TEE_BIN_OUT)"; \
-	else \
-		echo "警告: 未找到 OP-TEE 输出文件，但继续构建过程..."; \
-	fi
-
-################################################################################
-# U-Boot
-################################################################################
-.PHONY: uboot
-uboot: $(IDBLOADER_IMG) $(UBOOT_ITB)
-
-$(IDBLOADER_IMG) $(UBOOT_ITB): $(BL31_ELF)
-	@echo "=== 构建 U-Boot ==="
-	@# 检查必要的依赖文件
-	if [ ! -f "$(TPL_BIN)" ]; then \
-		echo "错误: 未找到 TPL 文件: $(TPL_BIN)"; \
-		exit 1; \
-	fi
-	cd $(UBOOT_PATH) && \
-	make distclean && \
-	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) rock5b-rk3588_defconfig && \
-	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) \
-	     ROCKCHIP_TPL=$(TPL_BIN) \
-	     BL31=$(BL31_ELF) \
-	     TEE=$(TEE_BIN_OUT)
-	@# 生成 idbloader.img
-	cd $(UBOOT_PATH) && \
-	mkimage -T rksd -n rk3568 -d $(TPL_BIN):$(SPL_BIN) idbloader.img
-	cp $(UBOOT_PATH)/idbloader.img $(OUTPUT_DIR)
-	cp $(UBOOT_PATH)/u-boot.itb $(OUTPUT_DIR)
-	@echo "U-Boot 构建完成: $(IDBLOADER_IMG), $(UBOOT_ITB)"
-
-################################################################################
-# ubuntu-image
-################################################################################
-.PHONY: ubuntu-image
-ubuntu-image: $(UBUNTU_IMG)
-
-$(UBUNTU_IMG):
-	@echo "=== 处理 Ubuntu 镜像 ==="
-	if [ -f "$(UBUNTU_IMG_XZ)" ]; then \
-		if [ ! -f "$(UBUNTU_IMG)" ]; then \
-			echo "解压 Ubuntu 镜像..."; \
-			xz -dk $(UBUNTU_IMG_XZ); \
-			echo "Ubuntu 镜像解压完成: $(UBUNTU_IMG)"; \
-		else \
-			echo "Ubuntu 镜像已存在: $(UBUNTU_IMG)"; \
-		fi; \
-	else \
-		echo "警告: 未找到 Ubuntu 镜像文件: $(UBUNTU_IMG_XZ)"; \
-	fi
-
-.PHONY: clean
-clean:
-	@echo "=== 清理构建文件 ==="
-	-cd $(TF_A_PATH) && make clean
-	-cd $(OPTEE_OS_PATH) && make clean
-	-cd $(UBOOT_PATH) && make distclean
-	-rm -rf $(OUTPUT_DIR)
-
-.PHONY: distclean
-distclean: clean
-	@echo "=== 深度清理 ==="
-	-rm -f $(UBUNTU_IMG)
-
-.PHONY: info
-info:
-	@echo "=== Rock 5B 构建系统信息 ==="
-	@echo "项目目录: $(TOP_DIR)"
-	@echo "输出目录: $(OUTPUT_DIR)"
-	@echo "工具链: $(CROSS_COMPILE)"
-	@echo "架构: $(ARCH)"
-	@echo "可用目标:"
-	@echo "  make all        - 构建所有组件"
-	@echo "  make atf        - 只构建 TF-A"
-	@echo "  make optee      - 只构建 OP-TEE"
-	@echo "  make uboot      - 只构建 U-Boot"
-	@echo "  make ubuntu-image - 处理 Ubuntu 镜像"
-	@echo "  make clean      - 清理构建文件"
-	@echo "  make disclean      - 深度清理构建文件"
-	@echo "  make info       - 显示此信息"
-
-################################################################################
-# Boot image, shall be copied to SD card
-################################################################################
-.PHONY: flash-check
-flash-check:
-	@echo "=== 检查烧录环境 ==="
-	@if [ -f "flash_rock5b.sh" ]; then \
-		chmod +x flash_rock5b.sh; \
-		echo "发现烧录脚本: flash_rock5b.sh"; \
-		echo "运行: ./flash_rock5b.sh /dev/sdX 进行烧录"; \
-	else \
-		echo "未找到烧录脚本，请创建 flash_rock5b.sh"; \
-	fi
-
 include common.mk
 
 DEBUG ?= 1
@@ -324,7 +22,13 @@ BOOT_IMG		?= $(ROOT)/out/rock5b.img
 RKDEVELOPTOOL_PATH	?= $(ROOT)/rkdeveloptool
 RKDEVELOPTOOL_BIN	?= $(RKDEVELOPTOOL_PATH)/rkdeveloptool
 LOADER_BIN		?= $(BINARIES_PATH)/rk3588_spl_loader_v1.15.113.bin
-TPL_BIN		        ?= $(BINARIES_PATH)/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.19.bin
+TPL_BIN		        ?= $(BINARIES_PATH)/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.16.bin
+
+# OP-TEE / RK3588 specific vars (can be overridden on make command line)
+OPTEE_PATH ?= $(ROOT)/optee_os
+OPTEE_CROSS64 ?= aarch64-linux-gnu-
+OPTEE_PA_BITS ?= 33
+RK3588_DDR_SRC ?= $(ROOT)/rkbin/bin/rk35/$(notdir $(TPL_BIN))
 
 LINUX_MODULES ?= y
 
@@ -437,7 +141,7 @@ linux-defconfig: $(LINUX_PATH)/.config
 
 LINUX_COMMON_FLAGS += ARCH=arm64
 LINUX_COMMON_TARGETS += Image rockchip/rk3588-nanopc-t6.dtb \
-			$(if $(filter y,$(LINUX_MODULES)),modules)
+				$(if $(filter y,$(LINUX_MODULES)),modules)
 
 .PHONY: linux
 linux: linux-common
@@ -475,6 +179,54 @@ optee-os: optee-os-common
 optee-os-clean: optee-os-clean-common
 
 clean: optee-os-clean
+
+# --------------------
+# New helper targets for building OP-TEE with specific flags, copying tee.bin
+# and building u-boot for rk3588 as requested.
+# Usage examples:
+#   make optee-build
+#   make copy-tee-to-uboot
+#   make rk3588-ddr-copy RK3588_DDR_SRC=/path/to/rk3588_ddr.bin
+#   make uboot-rk3588-build
+#   make mkimage-idbloader
+# --------------------
+
+.PHONY: optee-build
+optee-build:
+	@echo "Building OP-TEE in $(OPTEE_PATH) with PA_BITS=$(OPTEE_PA_BITS)"
+	cd $(OPTEE_PATH) && \
+		make CROSS_COMPILE64=$(OPTEE_CROSS64) PLATFORM=rockchip PLATFORM_FLAVOR=rk3588 \
+		CFG_ARM64_core=y CFG_USER_TA_TARGETS=ta_arm64 CFG_DT=y CFG_CORE_ARM64_PA_BITS=$(OPTEE_PA_BITS) clean && \
+		make CROSS_COMPILE64=$(OPTEE_CROSS64) PLATFORM=rockchip PLATFORM_FLAVOR=rk3588 \
+		CFG_ARM64_core=y CFG_USER_TA_TARGETS=ta_arm64 CFG_DT=y CFG_CORE_ARM64_PA_BITS=$(OPTEE_PA_BITS)
+
+.PHONY: copy-tee-to-uboot
+copy-tee-to-uboot: optee-build
+	@echo "Copying tee.bin to $(UBOOT_PATH)/rk3588/tee.bin"
+	mkdir -p $(UBOOT_PATH)/rk3588
+	cp -a $(OPTEE_PATH)/out/arm-plat-rockchip/core/tee.bin $(UBOOT_PATH)/rk3588/tee.bin
+
+.PHONY: rk3588-ddr-copy
+rk3588-ddr-copy:
+	@echo "Copying RK3588 DDR blob from $(RK3588_DDR_SRC) to $(UBOOT_PATH)/rk3588/ddr.bin"
+	mkdir -p $(UBOOT_PATH)/rk3588
+	cp -a $(RK3588_DDR_SRC) $(UBOOT_PATH)/rk3588/ddr.bin
+
+.PHONY: uboot-rk3588-build
+uboot-rk3588-build: rk3588-ddr-copy copy-tee-to-uboot
+	@echo "Building u-boot for rock5b/rk3588"
+	cd $(UBOOT_PATH) && \
+		sudo make clean && \
+		make ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- rock5b-rk3588_defconfig && \
+		make ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- ROCKCHIP_TPL=rk3588/ddr.bin BL31=rk3588/bl31.elf TEE=rk3588/tee.bin
+
+.PHONY: mkimage-idbloader
+mkimage-idbloader: uboot-rk3588-build
+	@echo "Generating idbloader.img using mkimage (note: using rk3568 name as compat)"
+	cd $(UBOOT_PATH) && \
+		# mkimage -T rksd -n rk3568 -d rk3588/ddr.bin:spl/u-boot-spl.bin idbloader.img
+		# If your mkimage doesn't support rk3588, use rk3568 as workaround as requested
+		mkimage -T rksd -n rk3568 -d rk3588/ddr.bin:spl/u-boot-spl.bin idbloader.img
 
 ################################################################################
 # Boot image, shall be copied to SD card
