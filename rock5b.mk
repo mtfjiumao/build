@@ -22,13 +22,12 @@ UBOOT_BIN		?= $(UBOOT_PATH)/u-boot.bin
 ROOT_IMG 		?= $(ROOT)/out-br/images/rootfs.ext2
 BOOT_IMG		?= $(ROOT)/out/rock5b.img
 RKBIN_PATH ?= $(ROOT)/rkbin
+RKBIN_BIN        := $(TOP_DIR)/rkbin
 RKDEVELOPTOOL_PATH	?= $(ROOT)/rkdeveloptool
 RKDEVELOPTOOL_BIN	?= $(RKDEVELOPTOOL_PATH)/rkdeveloptool
 SPL_BIN          := $(UBOOT_PATH)/spl/u-boot-spl.bin
-TPL_BIN		        ?= $(BINARIES_PATH)/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.19.bin
+TPL_BIN          := $(RKBIN_BIN)/bin/rk35/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.19.bin
 
-CROSS_COMPILE    ?= aarch64-linux-gnu-
-ARCH             ?= arm
 # 输出文件
 BL31_ELF         := $(OUTPUT_DIR)/bl31.elf
 TEE_BIN_OUT      := $(OUTPUT_DIR)/tee.bin
