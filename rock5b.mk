@@ -13,8 +13,7 @@ DEBUG ?= 1
 ################################################################################
 # Paths to git projects and various binaries
 ################################################################################
-TF_A_PATH		?= $(ROOT)/atf
-OPTEE_OS_PATH ?= $(ROOT)/optee_os
+TF_A_PATH		?= $(ROOT)/trusted-firmware-a
 BINARIES_PATH		?= $(ROOT)/out
 UBOOT_PATH		?= $(ROOT)/u-boot
 UBOOT_BIN		?= $(UBOOT_PATH)/u-boot.bin
