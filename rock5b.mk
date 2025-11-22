@@ -14,6 +14,8 @@ DEBUG ?= 1
 # Paths to git projects and various binaries
 ################################################################################
 TF_A_PATH		?= $(ROOT)/trusted-firmware-a
+TOP_DIR          := $(shell pwd)
+OUTPUT_DIR       := $(TOP_DIR)/build
 BINARIES_PATH		?= $(ROOT)/out
 UBOOT_PATH		?= $(ROOT)/u-boot
 UBOOT_BIN		?= $(UBOOT_PATH)/u-boot.bin
@@ -22,8 +24,16 @@ BOOT_IMG		?= $(ROOT)/out/rock5b.img
 RKBIN_PATH ?= $(ROOT)/rkbin
 RKDEVELOPTOOL_PATH	?= $(ROOT)/rkdeveloptool
 RKDEVELOPTOOL_BIN	?= $(RKDEVELOPTOOL_PATH)/rkdeveloptool
-LOADER_BIN		?= $(BINARIES_PATH)/rk3588_spl_v1.13.bin
+SPL_BIN          := $(UBOOT_PATH)/spl/u-boot-spl.bin
 TPL_BIN		        ?= $(BINARIES_PATH)/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.19.bin
+
+CROSS_COMPILE    ?= aarch64-linux-gnu-
+ARCH             ?= arm
+# 输出文件
+BL31_ELF         := $(OUTPUT_DIR)/bl31.elf
+TEE_BIN_OUT      := $(OUTPUT_DIR)/tee.bin
+IDBLOADER_IMG    := $(OUTPUT_DIR)/idbloader.img
+UBOOT_ITB        := $(OUTPUT_DIR)/u-boot.itb
 
 LINUX_MODULES ?= y
 
@@ -123,6 +133,27 @@ u-boot-clean:
 	$(UBOOT_EXPORTS) $(MAKE) -C $(UBOOT_PATH) $(UBOOT_FLAGS) distclean
 
 clean: u-boot-clean
+
+$(IDBLOADER_IMG) $(UBOOT_ITB): $(BL31_ELF)
+	@echo "=== 构建 U-Boot ==="
+	@# 检查必要的依赖文件
+	if [ ! -f "$(TPL_BIN)" ]; then \
+		echo "错误: 未找到 TPL 文件: $(TPL_BIN)"; \
+		exit 1; \
+	fi
+	cd $(UBOOT_PATH) && \
+	make distclean && \
+	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) rock5b-rk3588_defconfig && \
+	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) \
+	     ROCKCHIP_TPL=$(TPL_BIN) \
+	     BL31=$(BL31_ELF) \
+	     TEE=$(TEE_BIN_OUT)
+	@# 生成 idbloader.img
+	cd $(UBOOT_PATH) && \
+	mkimage -T rksd -n rk3568 -d $(TPL_BIN):$(SPL_BIN) idbloader.img
+	cp $(UBOOT_PATH)/idbloader.img $(OUTPUT_DIR)
+	cp $(UBOOT_PATH)/u-boot.itb $(OUTPUT_DIR)
+	@echo "U-Boot 构建完成: $(IDBLOADER_IMG), $(UBOOT_ITB)"
 
 ################################################################################
 # Linux kernel
