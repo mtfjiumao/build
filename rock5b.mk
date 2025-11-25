@@ -60,6 +60,26 @@ include toolchain.mk
 ################################################################################
 # Arm Trusted Firmware-A
 ################################################################################
+#
+# -- Explicit toolchain prefixes for this tree --
+# Ensure we use the aarch64-none toolchain prefix which TF-A expects.
+#
+AARCH64_CROSS_COMPILE ?= $(ROOT)/toolchains/aarch64/bin/aarch64-none-linux-gnu-
+AARCH32_CROSS_COMPILE ?= $(ROOT)/toolchains/aarch32/bin/arm-linux-gnueabihf-
+
+# Make the generic CROSS_COMPILE point to the AArch64 toolchain by default.
+# Some parts of the build use CROSS_COMPILE, others use specific names.
+CROSS_COMPILE ?= $(AARCH64_CROSS_COMPILE)
+
+# Ensure the non-secure kernel/user variables used elsewhere are consistent:
+CROSS_COMPILE_NS_KERNEL ?= $(AARCH64_CROSS_COMPILE)
+CROSS_COMPILE_NS_USER   ?= $(AARCH32_CROSS_COMPILE)
+
+# Ensure OP-TEE / TA build helpers pick the right toolchain prefixes too:
+CROSS_COMPILE_core      ?= $(AARCH64_CROSS_COMPILE)
+CROSS_COMPILE_ta_arm64  ?= $(AARCH64_CROSS_COMPILE)
+CROSS_COMPILE_ta_arm32  ?= $(AARCH32_CROSS_COMPILE)
+
 TF_A_EXPORTS ?= CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		M0_CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)"
 
