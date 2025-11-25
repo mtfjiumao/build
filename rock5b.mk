@@ -22,13 +22,7 @@ BOOT_IMG		?= $(ROOT)/out/rock5b.img
 RKDEVELOPTOOL_PATH	?= $(ROOT)/rkdeveloptool
 RKDEVELOPTOOL_BIN	?= $(RKDEVELOPTOOL_PATH)/rkdeveloptool
 LOADER_BIN		?= $(BINARIES_PATH)/rk3588_spl_loader_v1.15.113.bin
-TPL_BIN		        ?= $(BINARIES_PATH)/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.19.bin
-
-# OP-TEE / RK3588 specific vars (can be overridden on make command line)
-OPTEE_PATH ?= $(ROOT)/optee_os
-OPTEE_CROSS64 ?= aarch64-linux-gnu-
-OPTEE_PA_BITS ?= 33
-RK3588_DDR_SRC ?= $(ROOT)/rkbin/bin/rk35/$(notdir $(TPL_BIN))
+TPL_BIN		        ?= $(BINARIES_PATH)/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.16.bin
 
 LINUX_MODULES ?= y
 
@@ -141,7 +135,7 @@ linux-defconfig: $(LINUX_PATH)/.config
 
 LINUX_COMMON_FLAGS += ARCH=arm64
 LINUX_COMMON_TARGETS += Image rockchip/rk3588-nanopc-t6.dtb \
-				$(if $(filter y,$(LINUX_MODULES)),modules)
+			$(if $(filter y,$(LINUX_MODULES)),modules)
 
 .PHONY: linux
 linux: linux-common
@@ -179,54 +173,6 @@ optee-os: optee-os-common
 optee-os-clean: optee-os-clean-common
 
 clean: optee-os-clean
-
-# --------------------
-# New helper targets for building OP-TEE with specific flags, copying tee.bin
-# and building u-boot for rk3588 as requested.
-# Usage examples:
-#   make optee-build
-#   make copy-tee-to-uboot
-#   make rk3588-ddr-copy RK3588_DDR_SRC=/path/to/rk3588_ddr.bin
-#   make uboot-rk3588-build
-#   make mkimage-idbloader
-# --------------------
-
-.PHONY: optee-build
-optee-build:
-	@echo "Building OP-TEE in $(OPTEE_PATH) with PA_BITS=$(OPTEE_PA_BITS)"
-	cd $(OPTEE_PATH) && \
-		make CROSS_COMPILE64=$(OPTEE_CROSS64) PLATFORM=rockchip PLATFORM_FLAVOR=rk3588 \
-		CFG_ARM64_core=y CFG_USER_TA_TARGETS=ta_arm64 CFG_DT=y CFG_CORE_ARM64_PA_BITS=$(OPTEE_PA_BITS) clean && \
-		make CROSS_COMPILE64=$(OPTEE_CROSS64) PLATFORM=rockchip PLATFORM_FLAVOR=rk3588 \
-		CFG_ARM64_core=y CFG_USER_TA_TARGETS=ta_arm64 CFG_DT=y CFG_CORE_ARM64_PA_BITS=$(OPTEE_PA_BITS)
-
-.PHONY: copy-tee-to-uboot
-copy-tee-to-uboot: optee-build
-	@echo "Copying tee.bin to $(UBOOT_PATH)/rk3588/tee.bin"
-	mkdir -p $(UBOOT_PATH)/rk3588
-	cp -a $(OPTEE_PATH)/out/arm-plat-rockchip/core/tee.bin $(UBOOT_PATH)/rk3588/tee.bin
-
-.PHONY: rk3588-ddr-copy
-rk3588-ddr-copy:
-	@echo "Copying RK3588 DDR blob from $(RK3588_DDR_SRC) to $(UBOOT_PATH)/rk3588/ddr.bin"
-	mkdir -p $(UBOOT_PATH)/rk3588
-	cp -a $(RK3588_DDR_SRC) $(UBOOT_PATH)/rk3588/ddr.bin
-
-.PHONY: uboot-rk3588-build
-uboot-rk3588-build: rk3588-ddr-copy copy-tee-to-uboot
-	@echo "Building u-boot for rock5b/rk3588"
-	cd $(UBOOT_PATH) && \
-		sudo make clean && \
-		make ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- rock5b-rk3588_defconfig && \
-		make ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- ROCKCHIP_TPL=rk3588/ddr.bin BL31=rk3588/bl31.elf TEE=rk3588/tee.bin
-
-.PHONY: mkimage-idbloader
-mkimage-idbloader: uboot-rk3588-build
-	@echo "Generating idbloader.img using mkimage (note: using rk3568 name as compat)"
-	cd $(UBOOT_PATH) && \
-		# mkimage -T rksd -n rk3568 -d rk3588/ddr.bin:spl/u-boot-spl.bin idbloader.img
-		# If your mkimage doesn't support rk3588, use rk3568 as workaround as requested
-		mkimage -T rksd -n rk3568 -d rk3588/ddr.bin:spl/u-boot-spl.bin idbloader.img
 
 ################################################################################
 # Boot image, shall be copied to SD card
