@@ -64,8 +64,8 @@ include toolchain.mk
 # -- Explicit toolchain prefixes for this tree --
 # Ensure we use the aarch64-none toolchain prefix which TF-A expects.
 #
-AARCH64_CROSS_COMPILE ?= $(ROOT)/toolchains/aarch64/bin/aarch64-none-linux-gnu-
-AARCH32_CROSS_COMPILE ?= $(ROOT)/toolchains/aarch32/bin/arm-linux-gnueabihf-
+AARCH64_CROSS_COMPILE ?=$(ROOT)/toolchains/aarch64/bin/aarch64-none-linux-gnu-
+AARCH32_CROSS_COMPILE ?=$(ROOT)/toolchains/aarch32/bin/arm-linux-gnueabihf-
 
 # Make the generic CROSS_COMPILE point to the AArch64 toolchain by default.
 # Some parts of the build use CROSS_COMPILE, others use specific names.
